@@ -6,28 +6,34 @@
 
 import requests
 import requests.auth
-import sys
 import time
 import re
 from random import randint
+import random
+import os
+import schedule
+
 
 # create an app on your account at https://www.reddit.com/prefs/apps
 # enter your reddit app and account information here
 
-client_id="your-client-id-goes-here"
-client_secret="your-client-secret-goes-here"
-username="your-account-username-goes-here"
-password="your-account-password-goes-here"
+client_id = os.environ['client_id']
+client_secret = os.environ['client_secret']
+password = os.environ['password']
+username = os.environ['username']
+useragent = os.environ['useragent']
 
 # globals
 now = time.time()
 day_sec = 86400 # the number of seconds in a day
+list = [
+  'funny', 'teensbusty', 'unexpected','realgirls'
+]
 try:
-    subreddit = sys.argv[1]
+    subreddit = random.choice(list)
 except IndexError:
-    print "Usage: python repost.py nameOfSubreddit"
+    print ("Usage: python repost.py")
     exit()
-
 
 # amp; appears to insert itself randomly in the URL
 # get rid of it or the link won't work
@@ -40,8 +46,8 @@ def unlimit_request(url):
     response = requests.get(clean_url(url));
     i = 0
     while (response.status_code == 429 and i < 10):
-        print "Rate limited on " + url
-        print "Waiting one second..."
+        print ("Rate limited on " + url)
+        print ("Waiting one second...")
         time.sleep(1)
         response = requests.get(url)
         i = i + 1
@@ -66,7 +72,7 @@ def recently_posted(url):
 
 client_auth = requests.auth.HTTPBasicAuth(client_id, client_secret)
 post_data = {"grant_type": "password", "username": username, "password": password}
-headers = {"User-Agent": "RepostingClient/0.1 by YourUserName"}
+headers = {"User-Agent": "useragent"}
 response = requests.post("https://www.reddit.com/api/v1/access_token", auth=client_auth, data=post_data, headers=headers)
 
 # process the token
@@ -74,7 +80,7 @@ response = requests.post("https://www.reddit.com/api/v1/access_token", auth=clie
 response_json = response.json()
 access_token = response_json['access_token']
 token_type = response_json['token_type']
-headers = {"Authorization": token_type + " " + access_token, "User-Agent": "ChangeMeClient/0.1 by YourUserName"}
+headers = {"Authorization": token_type + " " + access_token, "User-Agent": "useragent"}
 
 # make sure the subreddit they want a) exists, and b) allows link posts
 
@@ -84,7 +90,7 @@ if (response.json()["data"]["submission_type"] == "self"):
 
 # # dig up an old post from top -> all time
 
-response = unlimit_request("https://reddit.com/r/" + subreddit + "/top.json?sort=top&t=all&limit=100")
+response = unlimit_request("https://reddit.com/r/" + subreddit + "/top.json?sort=top&t=all&limit=1000")
 response_json = response.json()
 
 # make sure the post is at least 200 days old
@@ -95,7 +101,7 @@ post = response_json["data"]["children"][rand_i]
 while (((now - post["data"]["created"])/day_sec < 200 
         or post["data"]["is_self"]
         or recently_posted(post["data"]["url"]))
-        and rand_i < 99):
+        and rand_i < 999):
     rand_i = rand_i + 1
     post = response_json["data"]["children"][rand_i]
 
@@ -112,12 +118,3 @@ payload = {
     'resubmit': True
 }
 response = requests.post("https://oauth.reddit.com/api/submit", data=payload, headers=headers)
-
-# check if the request was rate limited
-response_str = response.json()["jquery"][20][3][0]
-if (response_str != ''):
-    print response_str # 'you are doing that too much'
-else:
-    print payload
-    print response
-
